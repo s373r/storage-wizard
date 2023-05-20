@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;

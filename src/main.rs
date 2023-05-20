@@ -4,6 +4,8 @@ mod types;
 
 use std::env;
 
+use colored::*;
+
 use crate::file_index::FileIndexBuilder;
 
 fn main() {
@@ -15,18 +17,25 @@ fn main() {
         return;
     }
 
-    println!("Found {} duplicate groups:", file_index.len());
-
     file_index
         .into_iter()
         .filter(|(_, file_names)| file_names.len() > 1)
         .for_each(|(hash, file_names)| {
-            println!("Hash {hash}");
+            println!("{} {}", "- Hash".dimmed(), hash.green());
 
-            for file_name in file_names {
+            let duplicate_count = file_names.len();
+
+            for (index, file_name) in file_names.iter().enumerate() {
+                let duplicate_number = index + 1;
                 let file_name = file_name.to_string_lossy();
 
-                println!("{file_name}");
+                println!(
+                    "  {} {}",
+                    format!("[{duplicate_number}/{duplicate_count}]")
+                        .dimmed()
+                        .bold(),
+                    file_name
+                );
             }
 
             println!();

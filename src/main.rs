@@ -4,14 +4,21 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
+use jwalk::rayon::prelude::*;
 use jwalk::{DirEntry, WalkDirGeneric};
+
+use crate::common::hash_file_content;
 
 type FileSize = u64;
 type CustomData = ((), Option<FileSize>);
 type ParallelWalkDir = WalkDirGeneric<CustomData>;
+type SizeBasedFileIndex = HashMap<FileSize, Vec<PathBuf>>;
+type Hash = String;
+type HashBasedFileIndex = HashMap<Hash, Vec<PathBuf>>;
 
-fn build_size_based_file_index(walk_dir_iter: ParallelWalkDir) -> HashMap<FileSize, Vec<PathBuf>> {
-    let mut file_index = HashMap::<FileSize, Vec<PathBuf>>::new();
+fn build_size_based_file_index(walk_dir_iter: ParallelWalkDir) -> SizeBasedFileIndex {
+    // NOTE(DP): single-threaded index building
+    let mut file_index = SizeBasedFileIndex::new();
 
     for dir_entry_result in walk_dir_iter {
         let Ok(dir_entry) = dir_entry_result else {
@@ -24,7 +31,6 @@ fn build_size_based_file_index(walk_dir_iter: ParallelWalkDir) -> HashMap<FileSi
             continue;
         };
 
-        // let file_name = dir_entry.path().to_string_lossy().into_owned();
         let file_names = file_index.get_mut(&file_size);
 
         match file_names {
@@ -34,6 +40,38 @@ fn build_size_based_file_index(walk_dir_iter: ParallelWalkDir) -> HashMap<FileSi
             None => {
                 let new_file_names = vec![dir_entry.path()];
                 file_index.insert(file_size, new_file_names);
+            }
+        };
+    }
+
+    file_index
+}
+
+fn build_hash_based_file_index(size_based_file_index: SizeBasedFileIndex) -> HashBasedFileIndex {
+    // NOTE(DP): parallel hashing & single-threaded index building
+    let hashed_files: Vec<(PathBuf, Hash)> = size_based_file_index
+        .into_iter()
+        .par_bridge()
+        .flat_map(|(_, file_paths)| file_paths)
+        .map(|file_path| {
+            let hash = hash_file_content(&file_path).unwrap();
+
+            (file_path, hash)
+        })
+        .collect();
+
+    let mut file_index = HashBasedFileIndex::new();
+
+    for (file_path, hash) in hashed_files {
+        let file_names = file_index.get_mut(&hash);
+
+        match file_names {
+            Some(v) => {
+                v.push(file_path);
+            }
+            None => {
+                let new_file_names = vec![file_path];
+                file_index.insert(hash, new_file_names);
             }
         };
     }
@@ -74,12 +112,13 @@ fn main() {
             });
         });
 
-    let file_index = build_size_based_file_index(walk_dir_iter);
+    let size_based_file_index = build_size_based_file_index(walk_dir_iter);
+    let hash_based_file_index = build_hash_based_file_index(size_based_file_index);
 
-    for (file_size, file_names) in file_index
+    for (hash, file_names) in hash_based_file_index
         .into_iter()
-        .filter(|(_, file_names)| file_names.len() > 2)
+        .filter(|(_, file_names)| file_names.len() > 1)
     {
-        println!("size {file_size}: {:?}", file_names);
+        println!("hash {hash}: {:?}", file_names);
     }
 }

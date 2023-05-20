@@ -16,6 +16,37 @@ type SizeBasedFileIndex = HashMap<FileSize, Vec<PathBuf>>;
 type Hash = String;
 type HashBasedFileIndex = HashMap<Hash, Vec<PathBuf>>;
 
+fn build_parallel_walk_dir_iter(root_path_for_scan: &str) -> ParallelWalkDir {
+    ParallelWalkDir::new(root_path_for_scan)
+        .skip_hidden(false)
+        .process_read_dir(|_, _, _, dir_entry_results| {
+            // NOTE(DP): yield only files & dirs and entities w/o errors
+            dir_entry_results.retain(|dir_entry_result| match dir_entry_result {
+                Ok(DirEntry { file_type, .. }) => file_type.is_file() || file_type.is_dir(),
+                Err(error) => {
+                    eprintln!("Read dir_entry error: {}", error);
+
+                    false
+                }
+            });
+
+            dir_entry_results.iter_mut().for_each(|dir_entry_result| {
+                let Ok(dir_entry) = dir_entry_result else {
+                    // NOTE(DP): covered by the previous retain() call
+                    return;
+                };
+
+                if !dir_entry.file_type.is_file() {
+                    return;
+                }
+
+                let file_size = dir_entry.metadata().map(|m| m.len()).unwrap();
+
+                dir_entry.client_state = Some(file_size);
+            });
+        })
+}
+
 fn build_size_based_file_index(walk_dir_iter: ParallelWalkDir) -> SizeBasedFileIndex {
     // NOTE(DP): single-threaded index building
     let mut file_index = SizeBasedFileIndex::new();
@@ -82,36 +113,7 @@ fn build_hash_based_file_index(size_based_file_index: SizeBasedFileIndex) -> Has
 fn main() {
     let root_path_for_scan = env::args().nth(1).unwrap_or("./".to_owned());
 
-    // NOTE(DP): iterator preparation
-    let walk_dir_iter = ParallelWalkDir::new(&root_path_for_scan)
-        .skip_hidden(false)
-        .process_read_dir(|_, _, _, dir_entry_results| {
-            // NOTE(DP): yield only files & dirs and entities w/o errors
-            dir_entry_results.retain(|dir_entry_result| match dir_entry_result {
-                Ok(DirEntry { file_type, .. }) => file_type.is_file() || file_type.is_dir(),
-                Err(error) => {
-                    eprintln!("Read dir_entry error: {}", error);
-
-                    false
-                }
-            });
-
-            dir_entry_results.iter_mut().for_each(|dir_entry_result| {
-                let Ok(dir_entry) = dir_entry_result else {
-                        // NOTE(DP): covered by the previous retain() call
-                        return;
-                    };
-
-                if !dir_entry.file_type.is_file() {
-                    return;
-                }
-
-                let file_size = dir_entry.metadata().map(|m| m.len()).unwrap();
-
-                dir_entry.client_state = Some(file_size);
-            });
-        });
-
+    let walk_dir_iter = build_parallel_walk_dir_iter(root_path_for_scan.as_str());
     let size_based_file_index = build_size_based_file_index(walk_dir_iter);
     let hash_based_file_index = build_hash_based_file_index(size_based_file_index);
 

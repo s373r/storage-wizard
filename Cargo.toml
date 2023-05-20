@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 dashmap = "5.4.0"
 jwalk = "0.8.1"
+sha2 = { version = "0.10.6", features = ["asm"] }

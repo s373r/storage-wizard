@@ -1,20 +1,14 @@
 mod common;
+mod types;
 
-use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
 use jwalk::rayon::prelude::*;
-use jwalk::{DirEntry, WalkDirGeneric};
+use jwalk::DirEntry;
 
 use crate::common::hash_file_content;
-
-type FileSize = u64;
-type CustomData = ((), Option<FileSize>);
-type ParallelWalkDir = WalkDirGeneric<CustomData>;
-type SizeBasedFileIndex = HashMap<FileSize, Vec<PathBuf>>;
-type Hash = String;
-type HashBasedFileIndex = HashMap<Hash, Vec<PathBuf>>;
+use crate::types::*;
 
 fn build_parallel_walk_dir_iter(root_path_for_scan: &str) -> ParallelWalkDir {
     ParallelWalkDir::new(root_path_for_scan)

@@ -1,3 +1,4 @@
+use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
 use std::path::PathBuf;
 
 use jwalk::rayon::prelude::*;
@@ -16,9 +17,27 @@ impl<'a> FileIndexBuilder<'a> {
     }
 
     pub fn build(self) -> HashBasedFileIndex {
+        let progress_bar = ProgressBar::new_spinner().with_style(
+            ProgressStyle::with_template("{spinner:.green} {msg}")
+                .unwrap()
+                .tick_strings(&[
+                    "▹▹▹▹▹",
+                    "▸▹▹▹▹",
+                    "▹▸▹▹▹",
+                    "▹▹▸▹▹",
+                    "▹▹▹▸▹",
+                    "▹▹▹▹▸",
+                    "▪▪▪▪▪",
+                ]),
+        );
+
+        progress_bar.set_message("[1/3] Scan file structure...");
         let walk_dir_iter = self.build_parallel_walk_dir_iter();
+
+        progress_bar.set_message("[2/3] Try find duplicates by file size...");
         let size_based_file_index = self.build_size_based_file_index(walk_dir_iter);
 
+        progress_bar.finish_with_message("[3/3] Generate hashes for files with same size...");
         self.build_hash_based_file_index(size_based_file_index)
     }
 
@@ -88,11 +107,16 @@ impl<'a> FileIndexBuilder<'a> {
         &self,
         size_based_file_index: SizeBasedFileIndex,
     ) -> HashBasedFileIndex {
+        let hash_operation_count = size_based_file_index
+            .values()
+            .fold(0, |acc, files_names| acc + files_names.len() as u64);
+
         // NOTE(DP): parallel hashing & single-threaded index building
         let hashed_files: Vec<(PathBuf, Hash)> = size_based_file_index
             .into_iter()
             .par_bridge()
             .flat_map(|(_, file_paths)| file_paths)
+            .progress_count(hash_operation_count)
             .map(|file_path| {
                 let hash = hash_file_content(&file_path).unwrap();
 

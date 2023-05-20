@@ -10,4 +10,4 @@ pub type ParallelWalkDir = WalkDirGeneric<CustomData>;
 pub type SizeBasedFileIndex = HashMap<FileSize, Vec<PathBuf>>;
 
 pub type Hash = String;
-pub type HashBasedFileIndex = HashMap<Hash, Vec<PathBuf>>;
+pub type HashBasedFileIndex = HashMap<Hash, (FileSize, Vec<PathBuf>)>;

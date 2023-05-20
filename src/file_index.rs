@@ -1,5 +1,4 @@
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
-use std::path::PathBuf;
 
 use jwalk::rayon::prelude::*;
 use jwalk::DirEntry;
@@ -112,30 +111,35 @@ impl<'a> FileIndexBuilder<'a> {
             .fold(0, |acc, files_names| acc + files_names.len() as u64);
 
         // NOTE(DP): parallel hashing & single-threaded index building
-        let hashed_files: Vec<(PathBuf, Hash)> = size_based_file_index
+        let hashed_files: Vec<_> = size_based_file_index
             .into_iter()
+            .flat_map(|(file_size, file_names)| {
+                file_names
+                    .into_iter()
+                    .map(|file_path| (file_path, file_size))
+                    .collect::<Vec<_>>()
+            })
             .par_bridge()
-            .flat_map(|(_, file_paths)| file_paths)
-            .progress_count(hash_operation_count)
-            .map(|file_path| {
+            .map(|(file_path, file_size)| {
                 let hash = hash_file_content(&file_path).unwrap();
 
-                (file_path, hash)
+                (file_path, file_size, hash)
             })
+            .progress_count(hash_operation_count)
             .collect();
 
         let mut file_index = HashBasedFileIndex::new();
 
-        for (file_path, hash) in hashed_files {
+        for (file_path, file_size, hash) in hashed_files {
             let file_names = file_index.get_mut(&hash);
 
             match file_names {
-                Some(v) => {
+                Some((_, v)) => {
                     v.push(file_path);
                 }
                 None => {
                     let new_file_names = vec![file_path];
-                    file_index.insert(hash, new_file_names);
+                    file_index.insert(hash, (file_size, new_file_names));
                 }
             };
         }

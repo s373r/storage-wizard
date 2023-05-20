@@ -19,9 +19,16 @@ fn main() {
 
     file_index
         .into_iter()
-        .filter(|(_, file_names)| file_names.len() > 1)
-        .for_each(|(hash, file_names)| {
-            println!("{} {}", "- Hash".dimmed(), hash.green());
+        .filter(|(_, (_, file_names))| file_names.len() > 1)
+        .for_each(|(hash, (file_size, file_names))| {
+            println!(
+                "{} {} {} {} {}",
+                "- Hash".dimmed(),
+                hash.green(),
+                ", ".dimmed(),
+                "size ".dimmed(),
+                file_size.to_string().cyan()
+            );
 
             let duplicate_count = file_names.len();
 

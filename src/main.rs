@@ -5,6 +5,7 @@ mod types;
 use std::env;
 
 use colored::*;
+use indicatif::HumanBytes;
 
 use crate::file_index::FileIndexBuilder;
 
@@ -27,7 +28,7 @@ fn main() {
                 hash.green(),
                 ", ".dimmed(),
                 "size ".dimmed(),
-                file_size.to_string().cyan()
+                HumanBytes(file_size).to_string().cyan()
             );
 
             let duplicate_count = file_names.len();

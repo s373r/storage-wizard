@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colored = "2.0.0"
 indicatif = { version = "0.17.3", features = ["rayon"] }
 jwalk = "0.8.1"
 sha2 = { version = "0.10.6", features = ["asm"] }

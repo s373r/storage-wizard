@@ -2,9 +2,27 @@ use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
 
 use jwalk::rayon::prelude::*;
 use jwalk::DirEntry;
+use serde::{Deserialize, Serialize};
 
 use crate::common::hash_file_content;
 use crate::types::*;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FileGroup {
+    pub(crate) hash: String,
+    pub(crate) files: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FileIndexStorage {
+    pub groups: Vec<FileGroup>,
+}
+
+impl FileIndexStorage {
+    pub fn new() -> FileIndexStorage {
+        FileIndexStorage { groups: vec![] }
+    }
+}
 
 pub struct FileIndexBuilder<'a> {
     root_path: &'a str,

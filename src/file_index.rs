@@ -1,5 +1,7 @@
-use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
+use std::io;
+use std::path::PathBuf;
 
+use indicatif::{ParallelProgressIterator, ProgressBar, ProgressStyle};
 use jwalk::rayon::prelude::*;
 use jwalk::DirEntry;
 use serde::{Deserialize, Serialize};
@@ -9,8 +11,9 @@ use crate::types::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileGroup {
-    pub(crate) hash: String,
-    pub(crate) files: Vec<String>,
+    pub hash: String,
+    pub size: u64,
+    pub files: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,6 +34,29 @@ pub struct FileIndexBuilder<'a> {
 impl<'a> FileIndexBuilder<'a> {
     pub fn new(root_path: &'a str) -> Self {
         FileIndexBuilder { root_path }
+    }
+
+    pub fn from_file(path: &str) -> io::Result<HashBasedFileIndex> {
+        let file_index_storage_str = std::fs::read_to_string(path)?;
+        let file_index_storage =
+            serde_json::from_str::<FileIndexStorage>(&file_index_storage_str).unwrap();
+        let hash_based_file_index_capacity = file_index_storage.groups.len();
+        let result = file_index_storage
+            .groups
+            .into_iter()
+            .map(|file_group| (file_group.hash, (file_group.size, file_group.files)))
+            .fold(
+                HashBasedFileIndex::with_capacity(hash_based_file_index_capacity),
+                |mut acc, (hash, (file_size, files_names))| {
+                    let file_names_as_path_bufs: Vec<_> =
+                        files_names.into_iter().map(PathBuf::from).collect();
+
+                    acc.insert(hash, (file_size, file_names_as_path_bufs));
+                    acc
+                },
+            );
+
+        Ok(result)
     }
 
     pub fn build(self) -> HashBasedFileIndex {

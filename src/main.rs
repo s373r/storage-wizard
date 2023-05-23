@@ -1,16 +1,20 @@
+mod cli;
 mod common;
 mod file_index;
 mod types;
 
-use std::env;
+use clap::Parser;
 
 use colored::*;
 use indicatif::HumanBytes;
 
+use crate::cli::Cli;
 use crate::file_index::FileIndexBuilder;
 
 fn main() {
-    let root_path_for_scan = env::args().nth(1).unwrap_or("./".to_owned());
+    let Cli {
+        path: root_path_for_scan,
+    } = Cli::parse();
     let file_index = FileIndexBuilder::new(root_path_for_scan.as_str()).build();
 
     if file_index.is_empty() {
